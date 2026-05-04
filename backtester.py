@@ -5,6 +5,7 @@ Expiry: next candle close price
 WIN if price moves in predicted direction; LOSS otherwise.
 """
 
+from typing import Optional
 import numpy as np
 import pandas as pd
 
@@ -16,7 +17,7 @@ def run_backtest(
     strategy: dict,
     initial_balance: float = 1_000.0,
     min_trades: int = 20,
-) -> dict | None:
+) -> Optional[dict]:
     """
     Vectorised binary backtest.
 

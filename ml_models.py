@@ -8,6 +8,7 @@ ml_models.py — Three ML Modules
 import copy
 import warnings
 from collections import defaultdict
+from typing import Optional, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -184,9 +185,9 @@ class SelfLearner:
 
     def __init__(self):
         # condition_name → list of (threshold, win_rate)
-        self._history: dict[str, list] = defaultdict(list)
+        self._history: Dict[str, List] = defaultdict(list)
 
-    def record(self, strategy: dict, metrics: dict | None) -> None:
+    def record(self, strategy: dict, metrics: Optional[dict]) -> None:
         """Ingest results from one backtested strategy."""
         if not metrics:
             return
