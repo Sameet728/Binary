@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BINARY // STRATEGY DISCOVERY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #080b0f;
+    --surface:  #0d1117;
+    --panel:    #111820;
+    --border:   #1c2a38;
+    --accent:   #00f5c4;
+    --accent2:  #0af;
+    --warn:     #f5a623;
+    --danger:   #ff4d6d;
+    --dim:      #3a5068;
+    --text:     #c8dae8;
+    --text-dim: #4a6880;
+    --green:    #39ff9a;
+    --red:      #ff4d6d;
+    --mono:     'Share Tech Mono', monospace;
+    --sans:     'Rajdhani', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── Scanline overlay ─── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px, transparent 2px,
+      rgba(0,0,0,.08) 2px, rgba(0,0,0,.08) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ─── Header ─── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--sans);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(0,245,196,.35);
+  }
+  .logo span { color: var(--accent2); }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--dim);
+    transition: background .4s;
+  }
+  .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.4s infinite; }
+  .dot.stop { background: var(--red); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ─── Main Grid ─── */
+  .main {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    min-height: calc(100vh - 53px);
+  }
+
+  /* ─── Sidebar ─── */
+  .sidebar {
+    grid-row: 1 / 3;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .sidebar-section {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+  }
+
+  /* ─── Controls ─── */
+  .btn-group { display: flex; gap: 8px; flex-direction: column; }
+
+  .btn {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all .2s;
+    text-transform: uppercase;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .btn:hover::before { opacity: 1; }
+  .btn:hover { color: var(--bg); }
+
+  .btn-start  { border-color: var(--green); color: var(--green); }
+  .btn-start::before { background: var(--green); }
+  .btn-start:hover { text-shadow: none; }
+
+  .btn-stop   { border-color: var(--red); color: var(--red); }
+  .btn-stop::before { background: var(--red); }
+
+  .btn-dl     { border-color: var(--accent2); color: var(--accent2); }
+  .btn-dl::before { background: var(--accent2); }
+
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn span { position: relative; z-index: 1; }
+
+  /* ─── Stats cards ─── */
+  .stat-card {
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+  }
+  .stat-card:last-child { margin-bottom: 0; }
+
+  .stat-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-family: var(--sans);
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.1;
+    margin-top: 2px;
+  }
+  .stat-value.green { color: var(--green); }
+  .stat-value.warn  { color: var(--warn); }
+
+  /* ─── Status log ─── */
+  .status-log {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    word-break: break-all;
+    padding: 0 2px;
+  }
+  .status-log .ts { color: var(--dim); }
+
+  /* ─── Content area ─── */
+  .content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ─── Chart section ─── */
+  .chart-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+  }
+  .chart-title {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .chart-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 220px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 12px;
+  }
+
+  /* ─── Leaderboard ─── */
+  .lb-section {
+    flex: 1;
+    padding: 20px 24px;
+    overflow: auto;
+  }
+
+  .lb-header {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    color: var(--accent2);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  thead th {
+    text-align: left;
+    padding: 8px 10px;
+    color: var(--text-dim);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(28,42,56,.5);
+    transition: background .15s;
+    cursor: pointer;
+  }
+  tbody tr:hover { background: rgba(0,245,196,.04); }
+  tbody tr.selected { background: rgba(0,175,255,.07); }
+
+  tbody td {
+    padding: 9px 10px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .rank {
+    color: var(--text-dim);
+    font-size: 10px;
+  }
+  .rank-1 { color: #ffd700; }
+  .rank-2 { color: #c0c0c0; }
+  .rank-3 { color: #cd7f32; }
+
+  .id-chip {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 2px 6px;
+    font-size: 10px;
+    color: var(--accent2);
+  }
+
+  .score-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .score-bar {
+    height: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    min-width: 2px;
+    max-width: 80px;
+  }
+
+  .num-green { color: var(--green); }
+  .num-red   { color: var(--red); }
+  .num-warn  { color: var(--warn); }
+  .num-dim   { color: var(--text-dim); }
+
+  .gen-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border: 1px solid var(--dim);
+    color: var(--dim);
+  }
+
+  /* ─── Footer ticker ─── */
+  .ticker {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 28px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    z-index: 100;
+  }
+  .ticker-inner {
+    display: flex;
+    gap: 48px;
+    animation: ticker-scroll 30s linear infinite;
+    white-space: nowrap;
+    padding-left: 100%;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .ticker-item { letter-spacing: 1px; }
+  .ticker-item span { color: var(--accent); margin-left: 4px; }
+
+  @keyframes ticker-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  /* ─── Empty state ─── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+  .empty-state .big { font-size: 40px; margin-bottom: 12px; opacity: .3; }
+  .empty-state p { font-size: 11px; letter-spacing: 1px; }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .sidebar { grid-row: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+<header>
+  <div class="logo">BINARY<span>//</span>DISCOVERY</div>
+  <div class="status-pill">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusText">OFFLINE</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════ MAIN ════════════════════════════════ -->
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="section-label">Controls</div>
+      <div class="btn-group">
+        <button class="btn btn-start" id="btnStart" onclick="startEngine()">
+          <span>▶ Start Engine</span>
+        </button>
+        <button class="btn btn-stop" id="btnStop" onclick="stopEngine()" disabled>
+          <span>■ Stop Engine</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Live Stats</div>
+      <div class="stat-card">
+        <div class="stat-label">Strategies Tested</div>
+        <div class="stat-value" id="statTested">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Best Score</div>
+        <div class="stat-value green" id="statScore">0.0000</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Best Win Rate</div>
+        <div class="stat-value warn" id="statWR">0.00%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Leaderboard Size</div>
+        <div class="stat-value" id="statLB">0</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Engine Status</div>
+      <div class="status-log" id="statusLog">Awaiting start…</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">ML Accuracy</div>
+      <div style="color:var(--text-dim);font-size:10px;line-height:2">
+        Trade Predictor: <span id="mlTP" style="color:var(--accent)">—</span><br>
+        Strat Optimizer: <span id="mlSO" style="color:var(--accent)">—</span><br>
+        Self-Learner Conds: <span id="mlSL" style="color:var(--accent)">—</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="margin-top:auto">
+      <div class="section-label">Export</div>
+      <div class="btn-group">
+        <button class="btn btn-dl" onclick="download('strategies')">
+          <span>⬇ Strategies JSON</span>
+        </button>
+        <button class="btn btn-dl" onclick="download('results')">
+          <span>⬇ Results CSV</span>
+        </button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- Chart -->
+    <div class="chart-section">
+      <div class="chart-header">
+        <div class="chart-title">Equity Curve</div>
+        <div class="chart-meta" id="chartMeta">Select a strategy from leaderboard</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="equityChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="lb-section">
+      <div class="lb-header">Leaderboard — Top Strategies</div>
+      <div id="leaderboardWrap">
+        <div class="empty-state">
+          <div class="big">◎</div>
+          <p>Engine not started — no strategies discovered yet</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- TICKER -->
+<div class="ticker">
+  <div class="ticker-inner" id="tickerInner">
+    <span class="ticker-item">BTC/USDT<span>—</span></span>
+    <span class="ticker-item">Timeframe<span>5m</span></span>
+    <span class="ticker-item">Payout<span>≥ 0.71</span></span>
+    <span class="ticker-item">Expiry<span>NEXT CANDLE</span></span>
+    <span class="ticker-item">Exchange<span>BINANCE</span></span>
+    <span class="ticker-item">Min WR<span>60%</span></span>
+    <span class="ticker-item">Max DD<span>30%</span></span>
+    <!-- duplicated for seamless scroll -->
+    <span class="ticker-item">BTC/USDT<span>—</span></span>
+    <span class="ticker-item">Timeframe<span>5m</span></span>
+    <span class="ticker-item">Payout<span>≥ 0.71</span></span>
+    <span class="ticker-item">Expiry<span>NEXT CANDLE</span></span>
+    <span class="ticker-item">Exchange<span>BINANCE</span></span>
+    <span class="ticker-item">Min WR<span>60%</span></span>
+    <span class="ticker-item">Max DD<span>30%</span></span>
+  </div>
+</div>
+
+<script>
+/* ───────────────────────────── Chart Setup ───────────────────────────── */
+const ctx = document.getElementById('equityChart').getContext('2d');
+const equityChart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label: 'Balance',
+      data: [],
+      borderColor: '#00f5c4',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      fill: true,
+      backgroundColor: (ctx) => {
+        const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 220);
+        g.addColorStop(0, 'rgba(0,245,196,.18)');
+        g.addColorStop(1, 'rgba(0,245,196,0)');
+        return g;
+      },
+      tension: 0.3,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 400 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0d1117',
+        borderColor: '#1c2a38',
+        borderWidth: 1,
+        titleColor: '#4a6880',
+        bodyColor: '#00f5c4',
+        callbacks: {
+          label: ctx => ' $' + ctx.parsed.y.toFixed(2)
+        }
+      }
+    },
+    scales: {
+      x: {
+        display: false,
+        grid: { display: false }
+      },
+      y: {
+        grid: { color: 'rgba(28,42,56,.6)', lineWidth: 0.5 },
+        ticks: {
+          color: '#3a5068',
+          font: { family: "'Share Tech Mono'", size: 10 },
+          callback: v => '$' + v.toFixed(0)
+        },
+        border: { dash: [2, 4] }
+      }
+    }
+  }
+});
+
+/* ───────────────────────────── State ───────────────────────────── */
+let isRunning   = false;
+let pollTimer   = null;
+let selectedId  = null;
+
+/* ───────────────────────────── Controls ───────────────────────────── */
+async function startEngine() {
+  try {
+    await fetch('/start');
+    isRunning = true;
+    document.getElementById('btnStart').disabled = true;
+    document.getElementById('btnStop').disabled  = false;
+    document.getElementById('statusDot').className  = 'dot live';
+    document.getElementById('statusText').textContent = 'LIVE';
+    startPolling();
+  } catch(e) {
+    log('Error starting engine: ' + e.message);
+  }
+}
+
+async function stopEngine() {
+  try {
+    await fetch('/stop');
+    isRunning = false;
+    document.getElementById('btnStart').disabled = false;
+    document.getElementById('btnStop').disabled  = true;
+    document.getElementById('statusDot').className  = 'dot stop';
+    document.getElementById('statusText').textContent = 'STOPPED';
+    stopPolling();
+    log('Engine stopped');
+  } catch(e) {
+    log('Error stopping engine: ' + e.message);
+  }
+}
+
+function download(type) {
+  window.open('/download/' + type, '_blank');
+}
+
+/* ───────────────────────────── Polling ───────────────────────────── */
+function startPolling() {
+  pollTimer = setInterval(poll, 1500);
+  poll();
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function poll() {
+  try {
+    const [status, lb] = await Promise.all([
+      fetch('/status').then(r => r.json()),
+      fetch('/leaderboard').then(r => r.json()),
+    ]);
+    updateStatus(status);
+    updateLeaderboard(lb);
+
+    // If no specific strategy selected, show best equity
+    if (!selectedId && lb.length > 0) {
+      loadEquity(lb[0].id, lb[0]);
+    }
+  } catch(e) {
+    console.error('Poll error:', e);
+  }
+}
+
+/* ───────────────────────────── Status Update ───────────────────────── */
+function updateStatus(s) {
+  document.getElementById('statTested').textContent = s.strategies_tested.toLocaleString();
+  document.getElementById('statScore').textContent  = s.best_score.toFixed(4);
+  document.getElementById('statWR').textContent     = (s.best_win_rate * 100).toFixed(2) + '%';
+  document.getElementById('statLB').textContent     = s.leaderboard_size || 0;
+  log(s.current_status);
+
+  if (s.ml) {
+    document.getElementById('mlTP').textContent = (s.ml.trade_predictor_accuracy * 100).toFixed(1) + '%';
+    document.getElementById('mlSO').textContent = (s.ml.optimizer_accuracy * 100).toFixed(1) + '%';
+    document.getElementById('mlSL').textContent = s.ml.selflearner_conditions;
+  }
+
+  if (!s.running && isRunning) {
+    isRunning = false;
+    document.getElementById('btnStart').disabled = false;
+    document.getElementById('btnStop').disabled  = true;
+    document.getElementById('statusDot').className  = 'dot stop';
+    document.getElementById('statusText').textContent = 'STOPPED';
+    stopPolling();
+  }
+}
+
+/* ───────────────────────────── Leaderboard ───────────────────────────── */
+function updateLeaderboard(lb) {
+  if (!lb || lb.length === 0) return;
+
+  const rankSymbol = (i) => {
+    if (i === 0) return '<span class="rank rank-1">①</span>';
+    if (i === 1) return '<span class="rank rank-2">②</span>';
+    if (i === 2) return '<span class="rank rank-3">③</span>';
+    return `<span class="rank">${i+1}</span>`;
+  };
+
+  const colorNum = (v, inv=false) => {
+    const good = inv ? v < 0.15 : v > 0;
+    return good ? 'num-green' : (inv ? 'num-red' : 'num-warn');
+  };
+
+  const rows = lb.map((s, i) => {
+    const wr    = (s.win_rate    * 100).toFixed(1) + '%';
+    const ret   = (s.total_return * 100).toFixed(1) + '%';
+    const dd    = (s.max_drawdown * 100).toFixed(1) + '%';
+    const pf    = s.profit_factor.toFixed(2);
+    const sh    = s.sharpe_ratio.toFixed(2);
+    const barW  = Math.round(s.score * 100);
+
+    const sel = selectedId === s.id ? 'selected' : '';
+
+    return `
+    <tr class="${sel}" onclick="loadEquity('${s.id}', ${JSON.stringify(s).replace(/"/g,"'")})">
+      <td>${rankSymbol(i)}</td>
+      <td><span class="id-chip">${s.id}</span></td>
+      <td>
+        <span style="color:var(--text);font-weight:700">${s.symbol || 'N/A'}</span>
+        <span style="color:var(--text-dim);font-size:9px;margin-left:4px">${s.timeframe || '15m'}</span>
+      </td>
+      <td><span class="gen-badge">G${s.generation}</span></td>
+      <td>
+        <div class="score-bar-wrap">
+          <span class="${s.score > 0.5 ? 'num-green' : 'num-warn'}">${s.score.toFixed(4)}</span>
+          <div class="score-bar" style="width:${barW}px"></div>
+        </div>
+      </td>
+      <td class="${s.win_rate >= 0.65 ? 'num-green' : 'num-warn'}">${wr}</td>
+      <td class="${s.total_return > 0 ? 'num-green' : 'num-red'}">${ret}</td>
+      <td class="${s.max_drawdown < 0.15 ? 'num-green' : 'num-red'}">${dd}</td>
+      <td class="${s.profit_factor > 1.5 ? 'num-green' : 'num-warn'}">${pf}</td>
+      <td class="num-dim">${sh}</td>
+      <td class="num-dim">${s.total_trades}</td>
+      <td><button class="btn btn-dl" style="padding:4px 8px;font-size:9px;border:none;background:transparent;color:var(--accent2);cursor:pointer;text-decoration:underline" onclick="event.stopPropagation(); window.open('/download/trades/' + '${s.id}', '_blank')">CSV</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('leaderboardWrap').innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>ID</th><th>Pair</th><th>Gen</th><th>Score</th>
+          <th>Win Rate</th><th>Return</th><th>Max DD</th>
+          <th>Profit F.</th><th>Sharpe</th><th>Trades</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/* ───────────────────────────── Equity Chart ───────────────────────────── */
+async function loadEquity(stratId, meta) {
+  selectedId = stratId;
+
+  // Highlight row
+  document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
+  document.querySelectorAll('tbody tr').forEach(r => {
+    if (r.innerHTML.includes(stratId)) r.classList.add('selected');
+  });
+
+  try {
+    const curve = await fetch(`/equity/${stratId}`).then(r => r.json());
+    if (!curve || curve.length === 0) return;
+
+    const labels = curve.map((_, i) => i);
+    equityChart.data.labels   = labels;
+    equityChart.data.datasets[0].data = curve;
+
+    // Color based on profit
+    const isProfit = curve[curve.length-1] > curve[0];
+    equityChart.data.datasets[0].borderColor = isProfit ? '#39ff9a' : '#ff4d6d';
+
+    equityChart.update('none');
+
+    document.getElementById('chartMeta').textContent =
+      `ID: ${stratId}  |  Pair: ${meta.symbol || 'N/A'} (${meta.timeframe || '15m'})  |  WR: ${(meta.win_rate*100).toFixed(1)}%  |  ` +
+      `Return: ${(meta.total_return*100).toFixed(1)}%  |  ` +
+      `Trades: ${meta.total_trades}  |  Score: ${meta.score.toFixed(4)}`;
+  } catch(e) {
+    console.error('Equity load error:', e);
+  }
+}
+
+/* ───────────────────────────── Status Log ───────────────────────────── */
+let logLines = [];
+function log(msg) {
+  if (!msg) return;
+  const ts = new Date().toLocaleTimeString('en-GB', {hour12:false});
+  logLines.unshift(`<span class="ts">[${ts}]</span> ${msg}`);
+  if (logLines.length > 6) logLines.pop();
+  document.getElementById('statusLog').innerHTML = logLines.join('<br>');
+}
+
+/* ───────────────────────────── Init ───────────────────────────── */
+// Check if engine is already running on page load
+(async () => {
+  try {
+    const s = await fetch('/status').then(r => r.json());
+    if (s.running) {
+      isRunning = true;
+      document.getElementById('btnStart').disabled = true;
+      document.getElementById('btnStop').disabled  = false;
+      document.getElementById('statusDot').className  = 'dot live';
+      document.getElementById('statusText').textContent = 'LIVE';
+      startPolling();
+    }
+    updateStatus(s);
+  } catch(e) {
+    log('Backend not reachable — start the server first');
+  }
+})();
+</script>
+
+</body>
+</html>

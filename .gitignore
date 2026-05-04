@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.env
+venv/
+env/
+
+# Node
+node_modules/
+backend/node_modules/
+npm-debug.log
+
+# App Specific Data
+cache/
+results.csv
+leaderboard.json
+strategies.json
+trades_*.csv
