@@ -439,7 +439,7 @@ def download_trades(strategy_id: str):
 
 
 def _render_poster_loop() -> None:
-    render_url = os.environ.get("RENDER_URL", "http://localhost:3000/api/data")
+    render_url = os.environ.get("RENDER_URL", "https://binary-kp67.onrender.com/api/data")
     logger.info(f"Render poster active. Will send data every 60s to {render_url}")
     while True:
         time.sleep(60)
@@ -467,6 +467,9 @@ def _render_poster_loop() -> None:
             logger.warning(f"Error posting to backend UI at {render_url}: {e}")
 
 threading.Thread(target=_render_poster_loop, daemon=True, name="RenderPoster").start()
+
+# Auto-start the engine when the server starts
+start_engine()
 
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
